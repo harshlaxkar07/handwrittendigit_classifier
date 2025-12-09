@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Digit Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+
+        h2 {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            flex: 1;
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 0 5px #ccc;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .box img {
+            width: 180px;
+            margin-top: 10px;
+        }
+
+        .upload {
+            border: 2px dashed #888;
+            padding: 30px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            background: #1764e0;
+            color: #fff;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        #prediction-box {
+            text-align: center;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Handwritten Digit Classifier</h2>
+
+    <div class="container">
+        <!-- Left: images and flow -->
+        <div class="panel">
+            <div class="box">
+                <h4>Uploaded Image</h4>
+                <img id="uploaded-img" src="" alt="No image">
+            </div>
+
+            <div class="box">
+                <h4>Preprocessed Image</h4>
+                <img id="processed-img" src="" alt="No image">
+            </div>
+
+            <div class="box">
+                <h4>Model Flow</h4>
+                <p id="model-flow">Waiting for image...</p>
+            </div>
+        </div>
+
+        <!-- Right: upload and result -->
+        <div class="panel">
+            <div class="upload" onclick="document.getElementById('file').click()">
+                <p>Click here to upload an image</p>
+            </div>
+
+            <input type="file" id="file" accept="image/*" style="display:none">
+
+            <div id="prediction-box"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("file");
+        const uploadedImg = document.getElementById("uploaded-img");
+        const processedImg = document.getElementById("processed-img");
+        const predictionBox = document.getElementById("prediction-box");
+        const modelFlow = document.getElementById("model-flow");
+
+        fileInput.addEventListener("change", function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            // show uploaded image
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                uploadedImg.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            // send to backend
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("/predict", {
+                method: "POST",
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                // show preprocessed image
+                processedImg.src = "data:image/png;base64," + data.preprocessed;
+
+                // show prediction
+                predictionBox.innerHTML = `
+                    <h3>Prediction: <strong>${data.prediction}</strong></h3>
+                    <a class="btn" href="/download_preprocessed">Download Preprocessed Image</a>
+                `;
+
+                // simple flow text
+                modelFlow.innerHTML = `Image → Preprocess → Model → Output: <strong>${data.prediction}</strong>`;
+            });
+        });
+    </script>
+</body>
+</html>
