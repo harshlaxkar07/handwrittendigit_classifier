@@ -1,146 +1,103 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en" data-theme="dark">
 <head>
-    <title>Digit Classifier</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f2f2f2;
-            margin: 0;
-            padding: 0;
-        }
-
-        h2 {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .container {
-            display: flex;
-            padding: 20px;
-            gap: 20px;
-        }
-
-        .panel {
-            flex: 1;
-            background: #fff;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 0 5px #ccc;
-        }
-
-        .box {
-            border: 1px solid #ddd;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
-        .box img {
-            width: 180px;
-            margin-top: 10px;
-        }
-
-        .upload {
-            border: 2px dashed #888;
-            padding: 30px;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-
-        .btn {
-            padding: 8px 15px;
-            background: #1764e0;
-            color: #fff;
-            border-radius: 4px;
-            text-decoration: none;
-            display: inline-block;
-            margin-top: 10px;
-        }
-
-        #prediction-box {
-            text-align: center;
-            margin-top: 15px;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digit Classifier</title>
+<meta name="description" content="Draw or upload a handwritten digit and see the model's prediction with its full probability distribution.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='19' font-size='20'%3E%E2%9C%8F%EF%B8%8F%3C/text%3E%3C/svg%3E">
 </head>
-
 <body>
-    <h2>Handwritten Digit Classifier</h2>
 
-    <div class="container">
-        <!-- Left: images and flow -->
-        <div class="panel">
-            <div class="box">
-                <h4>Uploaded Image</h4>
-                <img id="uploaded-img" src="" alt="No image">
-            </div>
+<header class="topbar">
+  <div class="brand-mark" data-icon="pen" data-size="18"></div>
+  <div>
+    <div class="brand-name">Digit Classifier</div>
+    <div class="brand-sub">MNIST &middot; Keras</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="segmented" id="modelPicker"></div>
+  <button class="btn btn-ghost btn-icon" id="themeToggle" aria-label="Switch theme"></button>
+</header>
 
-            <div class="box">
-                <h4>Preprocessed Image</h4>
-                <img id="processed-img" src="" alt="No image">
-            </div>
+<main class="wrap">
 
-            <div class="box">
-                <h4>Model Flow</h4>
-                <p id="model-flow">Waiting for image...</p>
-            </div>
+  <div class="page-head">
+    <h1>Recognise a handwritten digit</h1>
+    <p>Draw straight onto the pad or upload a photo. The image is isolated, centred and scaled to the 28&times;28 format the model was trained on, then classified — and you get the probability for every digit, not just the winner.</p>
+  </div>
+
+  <div class="grid">
+
+    <div class="stack">
+      <div class="card">
+        <div class="card-head">
+          <h2>Input</h2>
+          <div class="spacer"></div>
+          <div class="segmented">
+            <button class="active" data-tab="draw">Draw</button>
+            <button data-tab="upload">Upload</button>
+          </div>
         </div>
 
-        <!-- Right: upload and result -->
-        <div class="panel">
-            <div class="upload" onclick="document.getElementById('file').click()">
-                <p>Click here to upload an image</p>
+        <div class="card-body">
+          <div id="drawPanel">
+            <div class="pad-wrap">
+              <canvas class="pad" id="pad" aria-label="Drawing pad"></canvas>
+              <div class="pad-hint">Draw a single digit, large and centred, using the full pad</div>
+              <div class="pad-tools">
+                <button class="btn" id="clearPad"><span data-icon="trash" data-size="15"></span> Clear</button>
+                <button class="btn btn-primary" id="predictPad"><span data-icon="sparkles" data-size="15"></span> Classify</button>
+              </div>
             </div>
+          </div>
 
-            <input type="file" id="file" accept="image/*" style="display:none">
-
-            <div id="prediction-box"></div>
+          <div id="uploadPanel" class="hidden">
+            <div class="dropzone" id="dropzone" tabindex="0" role="button">
+              <div class="dropzone-icon" data-icon="upload" data-size="20"></div>
+              <div class="dropzone-title">Drop an image here</div>
+              <div class="dropzone-hint">or click to browse &mdash; PNG, JPG or any common image format</div>
+              <input type="file" id="fileInput" accept="image/*">
+            </div>
+            <div id="sourcePreview" style="margin-top:14px"></div>
+          </div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>How the image is prepared</h2></div>
+        <div class="card-body">
+          <ol class="steps">
+            <li><b>Blur</b> &mdash; a light Gaussian blur removes speckle before thresholding.</li>
+            <li><b>Threshold</b> &mdash; Otsu's method separates ink from background automatically, whatever the lighting.</li>
+            <li><b>Crop</b> &mdash; the largest contour is taken as the digit and cut to its bounding box.</li>
+            <li><b>Scale</b> &mdash; the digit is resized to fit a 20&times;20 box with its aspect ratio intact.</li>
+            <li><b>Pad</b> &mdash; it is centred inside a 28&times;28 frame, matching the MNIST convention.</li>
+          </ol>
+        </div>
+      </div>
     </div>
 
-    <script>
-        const fileInput = document.getElementById("file");
-        const uploadedImg = document.getElementById("uploaded-img");
-        const processedImg = document.getElementById("processed-img");
-        const predictionBox = document.getElementById("prediction-box");
-        const modelFlow = document.getElementById("model-flow");
+    <div class="card" id="result"></div>
 
-        fileInput.addEventListener("change", function () {
-            const file = this.files[0];
-            if (!file) return;
+  </div>
+</main>
 
-            // show uploaded image
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                uploadedImg.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
+<template id="emptyTemplate">
+  <div class="card-head"><h2>Prediction</h2></div>
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon" data-icon="grid" data-size="23"></div>
+      <h3>Nothing classified yet</h3>
+      <p>Draw a digit or upload an image and the prediction will appear here, along with the probability for every digit from 0 to 9.</p>
+    </div>
+  </div>
+</template>
 
-            // send to backend
-            const formData = new FormData();
-            formData.append("file", file);
-
-            fetch("/predict", {
-                method: "POST",
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                // show preprocessed image
-                processedImg.src = "data:image/png;base64," + data.preprocessed;
-
-                // show prediction
-                predictionBox.innerHTML = `
-                    <h3>Prediction: <strong>${data.prediction}</strong></h3>
-                    <a class="btn" href="/download_preprocessed">Download Preprocessed Image</a>
-                `;
-
-                // simple flow text
-                modelFlow.innerHTML = `Image → Preprocess → Model → Output: <strong>${data.prediction}</strong>`;
-            });
-        });
-    </script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
